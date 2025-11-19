@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Template Visualizer</title>
+  <!-- Load js-yaml for parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+  <!-- Font Awesome for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      /* Theme Palette */
+      --header-bg: #2c3e50;
+      --header-text: #ffffff;
+      --bg-color: #f4f7f6;
+      --panel-bg: #ffffff;
+      --border-color: #e1e4e8;
+      --text-primary: #333;
+      --text-secondary: #666;
+      --accent-color: #3498db;
+      --tag-bg: #eef3f7;
+      --tag-border: #c4d3e0;
+      --tag-text: #2a5d85;
+      --code-bg: #2b2b2b;
+      --code-text: #f8f8f2;
+      --gutter-bg: #232323;
+      --gutter-text: #858585;
+      --error-bg: #ffeef0;
+      --error-text: #b31d28;
+      --font-ui: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+      --font-code: "Source Code Pro", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      font-family: var(--font-ui);
+      background-color: var(--bg-color);
+      overflow: hidden;
+    }
+
+    /* --- Header --- */
+    header {
+      background-color: var(--header-bg);
+      color: var(--header-text);
+      height: 50px;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      justify-content: space-between;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      z-index: 10;
+    }
+    
+    .brand {
+      font-weight: bold;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.3);
+      color: #fff;
+      padding: 5px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: rgba(255,255,255,0.1); }
+    .btn-primary { background-color: var(--accent-color); border-color: var(--accent-color); font-weight: bold; }
+    .btn-primary:hover { background-color: #2980b9; }
+
+    /* --- Main Layout --- */
+    .workspace {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* --- Editor Pane --- */
+    .editor-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border-color);
+      background: var(--code-bg);
+      min-width: 300px;
+      position: relative;
+    }
+
+    .editor-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .gutter {
+      width: 45px;
+      background: var(--gutter-bg);
+      color: var(--gutter-text);
+      text-align: right;
+      padding: 10px 5px;
+      font-family: var(--font-code);
+      font-size: 13px;
+      line-height: 1.5;
+      user-select: none;
+      overflow: hidden;
+      border-right: 1px solid #333;
+    }
+
+    #editor-textarea {
+      flex: 1;
+      background: var(--code-bg);
+      color: var(--code-text);
+      border: none;
+      padding: 10px;
+      font-family: var(--font-code);
+      font-size: 13px;
+      line-height: 1.5;
+      resize: none;
+      outline: none;
+      white-space: pre;
+      overflow: auto;
+      tab-size: 2;
+    }
+
+    /* Highlight overlay for "Jump to Code" */
+    .line-highlight {
+      position: absolute;
+      left: 45px;
+      right: 0;
+      background-color: rgba(52, 152, 219, 0.2);
+      pointer-events: none;
+      display: none;
+      border-top: 1px solid var(--accent-color);
+      border-bottom: 1px solid var(--accent-color);
+    }
+
+    /* --- Visual Pane --- */
+    .visual-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-color);
+      overflow: hidden;
+      min-width: 300px;
+    }
+
+    .pane-header {
+      background: #fff;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--border-color);
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #visual-output {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    /* --- Template Metadata --- */
+    .meta-box {
+      background: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 15px;
+      margin-bottom: 15px;
+      font-size: 0.9rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .meta-row {
+      display: flex;
+      margin-bottom: 6px;
+    }
+    .meta-row:last-child { margin-bottom: 0; }
+    .meta-key {
+      font-weight: 600;
+      min-width: 180px;
+      color: #555;
+      flex-shrink: 0;
+    }
+    .meta-val {
+      color: #333;
+      font-family: var(--font-code);
+      word-break: break-word;
+    }
+
+    /* --- Resource Cards --- */
+    .resource-card {
+      background: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      margin-bottom: 15px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      transition: transform 0.1s;
+      position: relative;
+      overflow: hidden; /* For border accent */
+    }
+    .resource-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--card-color, #95a5a6);
+    }
+    .resource-card:hover {
+      border-color: #b0b8c1;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 15px;
+      background: #f8f9fa;
+      border-bottom: 1px solid transparent;
+      cursor: pointer; /* Click to toggle */
+      user-select: none;
+    }
+    
+    .card-header:hover {
+      background: #f1f4f6;
+    }
+    
+    .card-header.expanded {
+      border-bottom-color: var(--border-color);
+    }
+
+    .res-title {
+      font-weight: 700;
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    /* Chevron Icon */
+    .toggle-chevron {
+      font-size: 0.8rem;
+      color: #999;
+      transition: transform 0.2s ease;
+    }
+    .card-header.expanded .toggle-chevron {
+      transform: rotate(90deg);
+    }
+
+    .res-type {
+      font-family: var(--font-code);
+      font-size: 0.75rem;
+      background: var(--card-color-light, #e1e4e8);
+      color: var(--card-color-dark, #444);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(0,0,0,0.1);
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .action-icon {
+      cursor: pointer;
+      color: var(--text-secondary);
+      padding: 4px;
+      border-radius: 3px;
+      transition: all 0.2s;
+    }
+    .action-icon:hover { color: var(--accent-color); background: rgba(0,0,0,0.05); }
+
+    /* Default Hidden State */
+    .card-body {
+      padding: 15px;
+      font-size: 0.9rem;
+      display: none; /* Collapsed by default */
+    }
+    .card-body.expanded {
+      display: block;
+    }
+
+    /* --- Recursive Tree / Clean Data Styles --- */
+    .prop-row {
+      display: flex;
+      margin-bottom: 4px;
+      align-items: flex-start;
+    }
+    .prop-key {
+      min-width: 120px;
+      font-weight: 600;
+      color: #444;
+      flex-shrink: 0;
+    }
+    .prop-val {
+      flex: 1;
+      word-break: break-word;
+    }
+    
+    /* AWS Function Badges */
+    .aws-fn {
+      display: inline-flex;
+      align-items: center;
+      font-family: var(--font-code);
+      font-size: 0.8rem;
+      border: 1px solid var(--tag-border);
+      background: var(--tag-bg);
+      color: var(--tag-text);
+      border-radius: 12px; /* Pill shape */
+      margin-right: 4px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.1s;
+      vertical-align: middle;
+    }
+    .aws-fn:hover {
+      background: #e1eaf1;
+      border-color: #a3b8cc;
+    }
+    .aws-fn-name { 
+      font-weight: bold; 
+      padding: 2px 8px;
+      border-radius: 12px;
+    }
+    /* Collapsible Content */
+    .aws-fn-content {
+      padding: 2px 8px 2px 0;
+      border-left: 1px solid rgba(0,0,0,0.1);
+      margin-left: 4px;
+      display: none; /* Hidden by default */
+    }
+    .aws-fn-content.expanded {
+      display: inline-block;
+    }
+    
+    /* Placeholder when collapsed */
+    .aws-fn-placeholder {
+      padding: 2px 6px 2px 0;
+      color: #888;
+      font-size: 0.7em;
+    }
+
+    /* Nested Structures */
+    .nested-obj {
+      border-left: 2px solid #e1e4e8;
+      padding-left: 10px;
+      margin-left: 2px;
+      margin-top: 4px;
+    }
+    .array-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .array-item {
+      position: relative;
+      padding-left: 15px;
+      margin-bottom: 2px;
+    }
+    .array-item::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: #999;
+    }
+
+    /* --- Error & Status --- */
+    .status-bar {
+      background: #f0f0f0;
+      border-top: 1px solid #ccc;
+      padding: 5px 10px;
+      font-size: 0.8rem;
+      color: #555;
+      display: flex;
+      justify-content: space-between;
+    }
+    .error-toast {
+      position: fixed;
+      bottom: 40px;
+      right: 20px;
+      background: var(--error-bg);
+      color: var(--error-text);
+      border: 1px solid #ffccd1;
+      padding: 15px;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      max-width: 400px;
+      z-index: 100;
+      display: none;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      top:0; left:0; right:0; bottom:0;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 200;
+    }
+    .modal {
+      background: #fff;
+      padding: 20px;
+      border-radius: 6px;
+      width: 400px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    .modal h3 { margin-top: 0; }
+    .modal input {
+      width: 100%;
+      padding: 8px;
+      margin: 10px 0 20px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <i class="fas fa-code" style="font-size: 1.2rem; color: #bdc3c7;"></i>
+      <span>Template Visualizer</span>
+    </div>
+    <div class="controls">
+      <button class="btn" onclick="resetEditor()" title="Clear All">
+        <i class="fas fa-trash"></i> Reset
+      </button>
+      <button class="btn btn-primary" onclick="forceRender()" title="Reload Visualization">
+        <i class="fas fa-sync-alt"></i> Reload Data
+      </button>
+    </div>
+  </header>
+
+  <!-- Workspace -->
+  <div class="workspace">
+    <!-- Editor -->
+    <div class="editor-pane">
+      <div class="editor-container">
+        <div class="gutter" id="gutter">1</div>
+        <textarea id="editor-textarea" spellcheck="false" placeholder="# Paste your SAM/CloudFormation YAML here..."></textarea>
+        <div class="line-highlight" id="line-highlight"></div>
+      </div>
+      <div class="status-bar">
+        <span id="line-count">Lines: 0</span>
+        <span id="parse-status">Ready</span>
+      </div>
+    </div>
+
+    <!-- Visualizer -->
+    <div class="visual-pane">
+      <div class="pane-header">
+        <span>Visualization</span>
+        <span style="font-size:0.8em; color: #666;">Read-only View</span>
+      </div>
+      <div id="visual-output">
+        <!-- Content generated by JS -->
+        <div style="text-align: center; color: #888; margin-top: 50px;">
+          <i class="fas fa-cube fa-3x" style="margin-bottom: 15px; opacity: 0.3;"></i>
+          <p>No resources defined yet.<br>Paste your template on the left.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Toast -->
+  <div class="error-toast" id="error-toast"></div>
+
+  <!-- Clone Modal -->
+  <div class="modal-overlay" id="clone-modal">
+    <div class="modal">
+      <h3>Clone Configuration</h3>
+      <p>Enter a new logical ID for the cloned resource:</p>
+      <input type="text" id="clone-name-input" placeholder="NewResourceName">
+      <div class="modal-actions">
+        <button class="btn" style="color: #333; border-color: #ccc;" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="confirmClone()">Clone</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Constants & State ---
+    const textarea = document.getElementById('editor-textarea');
+    const gutter = document.getElementById('gutter');
+    const output = document.getElementById('visual-output');
+    const errorToast = document.getElementById('error-toast');
+    const statusLabel = document.getElementById('parse-status');
+    const lineCountLabel = document.getElementById('line-count');
+    const highlightEl = document.getElementById('line-highlight');
+    
+    let currentCloneTarget = null;
+    let currentCloneSourceId = null;
+
+    // --- 1. Advanced YAML Schema Configuration ---
+    // We need to handle all AWS Intrinsic functions, supporting scalar, sequence, and mapping types.
+    const awsTags = [
+      'Ref', 'Sub', 'Join', 'Select', 'Split', 'FindInMap', 'GetAtt', 
+      'ImportValue', 'Base64', 'Equals', 'And', 'Or', 'Not', 'If', 'Condition', 'GetAZs', 'Cidr'
+    ];
+
+    const createAwsType = (name) => {
+      const tagName = '!' + name;
+      return ['scalar', 'sequence', 'mapping'].map(kind => 
+        new jsyaml.Type(tagName, {
+          kind: kind,
+          construct: (data) => ({ [`aws:${name}`]: data })
+        })
+      );
+    };
+
+    const SAM_SCHEMA = jsyaml.DEFAULT_SCHEMA.extend(
+      awsTags.flatMap(tag => createAwsType(tag))
+    );
+
+    // --- 2. Colors & Styles ---
+    // Colors for resource types
+    const RESOURCE_COLORS = {
+      'AWS::Serverless::Function': { main: '#e67e22', light: '#fdf2e9', dark: '#d35400' }, // Orange
+      'AWS::Lambda::Function': { main: '#e67e22', light: '#fdf2e9', dark: '#d35400' },
+      'AWS::DynamoDB::Table': { main: '#3498db', light: '#ebf5fb', dark: '#2980b9' }, // Blue
+      'AWS::S3::Bucket': { main: '#27ae60', light: '#e9f7ef', dark: '#219150' }, // Green
+      'AWS::IAM::Role': { main: '#e74c3c', light: '#fdedec', dark: '#c0392b' }, // Red
+      'AWS::IAM::Policy': { main: '#e74c3c', light: '#fdedec', dark: '#c0392b' },
+      'AWS::SQS::Queue': { main: '#9b59b6', light: '#f5eef8', dark: '#8e44ad' }, // Purple
+      'AWS::SNS::Topic': { main: '#f1c40f', light: '#fef9e7', dark: '#f39c12' }, // Yellow
+      'AWS::ApiGateway::RestApi': { main: '#8e44ad', light: '#f4ecf7', dark: '#71368a' },
+      'AWS::Serverless::Api': { main: '#8e44ad', light: '#f4ecf7', dark: '#71368a' },
+      'default': { main: '#95a5a6', light: '#f2f4f4', dark: '#7f8c8d' } // Grey
+    };
+
+    function getResourceStyle(type) {
+      return RESOURCE_COLORS[type] || RESOURCE_COLORS['default'];
+    }
+
+    // --- 3. Rendering Logic ---
+
+    function renderNode(node) {
+      if (node === null || node === undefined) return '<span style="color:#999">null</span>';
+      
+      // 1. Primitives
+      if (typeof node !== 'object') return `<span>${escapeHtml(String(node))}</span>`;
+
+      // 2. AWS Intrinsic Objects
+      const keys = Object.keys(node);
+      const awsKey = keys.find(k => k.startsWith('aws:'));
+      
+      if (awsKey) {
+        const fnName = awsKey.split(':')[1];
+        const fnVal = node[awsKey];
+        
+        let contentHtml = '';
+        
+        if (fnName === 'GetAtt') {
+             const val = Array.isArray(fnVal) ? fnVal.join('.') : fnVal;
+             contentHtml = escapeHtml(String(val));
+        } else {
+             contentHtml = renderComplexity(fnVal);
+        }
+
+        // The toggle logic is handled by onclick on the parent span
+        return `
+          <span class="aws-fn" onclick="toggleFn(this)" title="Click to expand/collapse">
+            <span class="aws-fn-name">${fnName}</span>
+            <span class="aws-fn-placeholder">[...]</span>
+            <span class="aws-fn-content">${contentHtml}</span>
+          </span>
+        `;
+      }
+
+      // 3. Arrays
+      if (Array.isArray(node)) {
+        if (node.length === 0) return '[]';
+        const items = node.map(item => `<li class="array-item">${renderNode(item)}</li>`).join('');
+        return `<ul class="array-list">${items}</ul>`;
+      }
+
+      // 4. Objects
+      const cfKey = keys.find(k => awsTags.includes(k) && keys.length === 1);
+      if (cfKey) {
+         // It's a json-style intrinsic { "Ref": "abc" }
+         return `
+          <span class="aws-fn" onclick="toggleFn(this)" title="Click to expand/collapse">
+            <span class="aws-fn-name">${cfKey}</span>
+            <span class="aws-fn-placeholder">[...]</span>
+            <span class="aws-fn-content">${renderComplexity(node[cfKey])}</span>
+          </span>
+         `;
+      }
+
+      const entries = Object.entries(node).map(([k, v]) => {
+        return `
+          <div class="prop-row">
+            <div class="prop-key">${escapeHtml(k)}:</div>
+            <div class="prop-val">${renderNode(v)}</div>
+          </div>
+        `;
+      }).join('');
+      return `<div class="nested-obj">${entries}</div>`;
+    }
+
+    function renderComplexity(val) {
+      if (typeof val === 'object') {
+          return `<span style="display:inline-block; vertical-align:top; margin-top:2px;">${renderNode(val)}</span>`;
+      }
+      return escapeHtml(String(val));
+    }
+
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function toggleFn(element) {
+      // Prevent event bubbling if nested
+      event.stopPropagation();
+      const content = element.querySelector('.aws-fn-content');
+      const placeholder = element.querySelector('.aws-fn-placeholder');
+      
+      if (content.classList.contains('expanded')) {
+        content.classList.remove('expanded');
+        placeholder.style.display = 'inline';
+      } else {
+        content.classList.add('expanded');
+        placeholder.style.display = 'none';
+      }
+    }
+
+    function toggleResource(header) {
+        const cardBody = header.nextElementSibling;
+        
+        // Toggle class on body
+        if (cardBody.classList.contains('expanded')) {
+            cardBody.classList.remove('expanded');
+            header.classList.remove('expanded');
+        } else {
+            cardBody.classList.add('expanded');
+            header.classList.add('expanded');
+        }
+    }
+
+    // --- 4. Main Render Loop ---
+
+    function renderTemplate() {
+      const yamlText = textarea.value;
+      errorToast.style.display = 'none';
+      statusLabel.textContent = "Parsing...";
+      
+      if (!yamlText.trim()) {
+        output.innerHTML = `<div style="text-align: center; color: #888; margin-top: 50px;">
+          <i class="fas fa-cube fa-3x" style="margin-bottom: 15px; opacity: 0.3;"></i>
+          <p>Template is empty.</p>
+        </div>`;
+        return;
+      }
+
+      try {
+        const doc = jsyaml.load(yamlText, { schema: SAM_SCHEMA });
+        if (!doc || typeof doc !== 'object') throw new Error("Root must be an object");
+
+        let html = '';
+
+        // 1. Template Metadata (Version, Transform, Description)
+        const metaFields = ['AWSTemplateFormatVersion', 'Transform', 'Description'];
+        let metaContent = '';
+        metaFields.forEach(field => {
+            if (doc[field]) {
+                metaContent += `
+                    <div class="meta-row">
+                        <div class="meta-key">${field}:</div>
+                        <div class="meta-val">${escapeHtml(String(doc[field]))}</div>
+                    </div>`;
+            }
+        });
+        if (metaContent) {
+            html += `<div class="meta-box">${metaContent}</div>`;
+        }
+
+        // 2. Global Sections (Globals, Mappings, Conditions, Parameters)
+        const globalSections = [
+            { key: 'Globals', color: '#9b59b6', icon: 'fa-globe' },       // Purple
+            { key: 'Parameters', color: '#34495e', icon: 'fa-sliders-h' }, // Dark Blue
+            { key: 'Mappings', color: '#16a085', icon: 'fa-map-signs' },   // Teal
+            { key: 'Conditions', color: '#f39c12', icon: 'fa-code-branch' } // Orange
+        ];
+
+        globalSections.forEach(sec => {
+            if (doc[sec.key]) {
+                html += `
+                  <div class="resource-card" style="--card-color: ${sec.color}">
+                    <div class="card-header" onclick="toggleResource(this)">
+                      <div class="res-title">
+                        <i class="fas fa-chevron-right toggle-chevron"></i>
+                        <i class="fas ${sec.icon}" style="margin-right:8px; opacity:0.7; width:16px;"></i>
+                        ${sec.key}
+                      </div>
+                    </div>
+                    <div class="card-body">
+                      ${renderNode(doc[sec.key])}
+                    </div>
+                  </div>
+                `;
+            }
+        });
+
+        // 3. Resources
+        if (doc.Resources) {
+          html += `<h4 style="border-bottom:1px solid #eee; padding-bottom:5px; color:#555; margin-top:25px;">Resources</h4>`;
+          Object.entries(doc.Resources).forEach(([key, res]) => {
+            const type = res.Type || "Unknown";
+            const props = res.Properties || {};
+            
+            // Style based on Type
+            const style = getResourceStyle(type);
+            
+            html += `
+              <div class="resource-card" style="--card-color: ${style.main}">
+                <div class="card-header" onclick="toggleResource(this)">
+                  <div class="res-title">
+                    <i class="fas fa-chevron-right toggle-chevron"></i>
+                    ${escapeHtml(key)}
+                    <span class="res-type" style="--card-color-light:${style.light}; --card-color-dark:${style.dark}">${type}</span>
+                  </div>
+                  <div class="card-actions">
+                    <i class="fas fa-copy action-icon" title="Clone Configuration" onclick="event.stopPropagation(); openCloneModal('${key}')"></i>
+                    <i class="fas fa-location-arrow action-icon" title="Go to Code" onclick="event.stopPropagation(); jumpToCode('${key}')"></i>
+                  </div>
+                </div>
+                <div class="card-body">
+                  ${renderNode(props)}
+                </div>
+              </div>
+            `;
+          });
+        }
+
+        output.innerHTML = html;
+        statusLabel.textContent = "Valid YAML";
+        statusLabel.style.color = "green";
+
+      } catch (e) {
+        output.innerHTML = ''; 
+        const msg = `Error: ${e.message}`;
+        errorToast.textContent = msg;
+        errorToast.style.display = 'block';
+        statusLabel.textContent = "Syntax Error";
+        statusLabel.style.color = "red";
+        if (e.mark && e.mark.line) highlightLine(e.mark.line);
+      }
+    }
+
+    // --- 5. Logic Utils ---
+
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+
+    const debouncedRender = debounce(renderTemplate, 500);
+
+    function jumpToCode(resourceKey) {
+      const text = textarea.value;
+      const lines = text.split('\n');
+      const regex = new RegExp(`^\\s*${resourceKey}\\s*:`);
+      
+      let foundLine = -1;
+      for (let i = 0; i < lines.length; i++) {
+        if (regex.test(lines[i])) {
+          foundLine = i;
+          break;
+        }
+      }
+
+      if (foundLine !== -1) highlightLine(foundLine);
+      else alert("Could not find resource definition in text.");
+    }
+
+    function highlightLine(lineIndex) {
+      const textAreaLineHeight = 19.5; 
+      const scrollPos = (lineIndex * textAreaLineHeight) - (textarea.clientHeight / 2);
+      textarea.scrollTo({ top: scrollPos, behavior: 'smooth' });
+      highlightEl.style.display = 'block';
+      highlightEl.style.top = (lineIndex * textAreaLineHeight) + 'px';
+      highlightEl.style.height = textAreaLineHeight + 'px';
+      setTimeout(() => { highlightEl.style.display = 'none'; }, 2000);
+    }
+
+    function updateLineNumbers() {
+      const val = textarea.value;
+      const lineCount = val.split('\n').length;
+      lineCountLabel.innerText = `Lines: ${lineCount}`;
+      if (gutter.childElementCount !== lineCount) {
+         gutter.innerHTML = Array(lineCount).fill(0).map((_, i) => i + 1).join('<br>');
+      }
+    }
+
+    textarea.addEventListener('scroll', () => {
+      gutter.scrollTop = textarea.scrollTop;
+    });
+
+    textarea.addEventListener('input', () => {
+      updateLineNumbers();
+      debouncedRender();
+    });
+
+    // --- 6. Cloning Logic (Corrected Position) ---
+    
+    function openCloneModal(key) {
+      currentCloneSourceId = key;
+      const modal = document.getElementById('clone-modal');
+      document.getElementById('clone-name-input').value = key + 'Copy';
+      modal.style.display = 'flex';
+      document.getElementById('clone-name-input').focus();
+    }
+
+    function closeModal() {
+      document.getElementById('clone-modal').style.display = 'none';
+      currentCloneSourceId = null;
+    }
+
+    function confirmClone() {
+      const newName = document.getElementById('clone-name-input').value.trim();
+      if (!newName) return;
+
+      try {
+        const doc = jsyaml.load(textarea.value, { schema: SAM_SCHEMA });
+        if (doc.Resources && doc.Resources[currentCloneSourceId]) {
+          if (doc.Resources[newName]) {
+            alert("A resource with that name already exists!");
+            return;
+          }
+          
+          appendResourceString(currentCloneSourceId, newName);
+          debouncedRender();
+          closeModal();
+        }
+      } catch (e) {
+        alert("Error cloning: " + e.message);
+      }
+    }
+
+    function appendResourceString(sourceKey, newKey) {
+      const lines = textarea.value.split('\n');
+      
+      // 1. Find Start Line
+      const startRegex = new RegExp(`^\\s*${sourceKey}\\s*:`);
+      let start = -1;
+      let indent = 0;
+      
+      for(let i=0; i<lines.length; i++) {
+        if(startRegex.test(lines[i])) {
+          start = i;
+          indent = lines[i].search(/\S/);
+          break;
+        }
+      }
+      
+      if (start === -1) return;
+
+      // 2. Find End Line (The line AFTER the resource block)
+      let end = lines.length;
+      for(let i=start+1; i<lines.length; i++) {
+        const currentIndent = lines[i].search(/\S/);
+        // Skip empty lines or comments inside the block
+        if (lines[i].trim() === '' || lines[i].trim().startsWith('#')) continue;
+        
+        // If we find a line with Same or Less indentation, the previous block has ended.
+        if (currentIndent > -1 && currentIndent <= indent) {
+          end = i;
+          break;
+        }
+      }
+
+      // 3. Extract & Modify Block
+      const resourceBlock = lines.slice(start, end);
+      resourceBlock[0] = resourceBlock[0].replace(sourceKey, newKey);
+      
+      // 4. Insert Immediately After
+      // We create an array of lines to splice in
+      const newBlockLines = ['', ...resourceBlock]; // Add empty line separator
+      
+      // splice modifies original array
+      lines.splice(end, 0, ...newBlockLines);
+      
+      textarea.value = lines.join('\n');
+      
+      textarea.dispatchEvent(new Event('input'));
+      
+      // Scroll to new item
+      setTimeout(() => {
+        jumpToCode(newKey);
+      }, 150);
+    }
+
+    function forceRender() {
+      renderTemplate();
+    }
+
+    function resetEditor() {
+      if(confirm("Clear editor?")) {
+        textarea.value = '';
+        updateLineNumbers();
+        renderTemplate();
+      }
+    }
+
+    // Init
+    const defaultTemplate = `AWSTemplateFormatVersion: '2025-11-08'
+Transform: AWS::Serverless-2025-11-31
+Description: >
+  Advanced SAM Visualizer Demo
+
+Conditions:
+  IsProduction: !Equals [!Ref Environment, "prod"]
+
+Resources:
+  OrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: hello_world/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Environment:
+        Variables:
+          STAGE: !Ref Environment
+          TABLE_NAME: !Ref OrderTable
+
+  OrderTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "OrderTable-\${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: "Id"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "Id"
+          KeyType: "HASH"
+
+  Auth:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+`;
+    textarea.value = defaultTemplate;
+    updateLineNumbers();
+    renderTemplate();
+
+  </script>
+</body>
+</html>
