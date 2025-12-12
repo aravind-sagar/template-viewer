@@ -1,3 +1,5 @@
+<img width="2816" height="1536" alt="template viewer" src="https://github.com/user-attachments/assets/58299469-7c74-43a6-9f4b-a54798ed81b3" />
+
 # SAM Template Viewer - Technical Documentation
 
 ## 1. Working Principle
